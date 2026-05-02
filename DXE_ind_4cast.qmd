@@ -1,0 +1,152 @@
+---
+title: "Forecasting Secchi Depth at Falling Creek Reservoir"
+format: html
+embed resources 
+---
+
+Part 1 – Model Description
+
+
+#Model structure and rationale
+
+I compared a linear model to a random forest forecast of Secchi Depth at Falling Creek Reservoir at site 50. I pivoted from modeling CO2 concentrations as the model proved very difficult to fit, and wanted to investigate how a broader temporal gap ( Secchi is measured weekly ) than a daily measurement would impact different modeling approaches success. Each model uses identical drivers, including: 
+
+#Explanation of substantive novelty
+
+My approach meets the novelty requirement by:
+
+1. Making a random forest model
+2. Comparing two models that are not baseline models 
+
+#Uncertainty sources and implementation
+
+
+- Derived initial condition uncertainty from historical dataset replicates (sd = 0.5m)
+- Driver uncertainty from NOAA met forecasts
+- Parameter uncertainty derived from regression coefficients (for the random forest model, this differs in that Parameter uncertainty derived from variance in bootstrapped trees)
+- Process uncertainty from model residuals
+
+
+#Responses from the registration form
+
+Model Id's: Secchi_rf_Dom, Secchi_lm_Dom
+
+Link to model code: 
+https://github.com/dedwards2002/vera4cast_models/blob/main/R/Secchi_Dom/Secchi_RF_Model_Code.R 
+https://github.com/dedwards2002/vera4cast_models/blob/main/R/Secchi_Dom/Secchi_LM_model_code.R
+
+Model approach category: Empirical, Machine Learning
+
+Utilized the Random Forest with met variables to predict secchi depth from April-Nov
+
+Utilized a linear model with met variables to predict secchi depth from April-Nov
+
+I utilized previous secchi depth, Air temp, precipitation, wind for both models
+
+Both initial conditions and parameters are updated iteratively  
+
+# Reforecast analysis
+```{r}
+#| label: fig-secchi-horizon
+#| fig-cap: "Forecast Performance over Time (FCRE Secchi Depth, 2024)."
+#| echo: false
+#| message: false
+#| warning: false
+
+library(tidyverse)
+
+# Read the pre-calculated horizon data
+horizon_plot_data <- read_csv("model_output/secchi_DXE/secchi_reforecast_plot_data.csv", show_col_types = FALSE)
+
+ggplot(horizon_plot_data, aes(x = horizon_days, y = mean_crps, color = model_id, group = model_id)) +
+  geom_point(size = 2, alpha = 0.5) +
+  geom_smooth(method = "loess", se = FALSE, linewidth = 1.5, span = 0.8) +
+  theme_bw() +
+  scale_color_manual(values = c(
+    "climatology" = "gray50", 
+    "persistenceRW" = "darkorange", 
+    "Dom_LM_Secchi" = "firebrick",
+    "Dom_RF_Secchi" = "dodgerblue4"
+  )) + 
+  labs(
+    title = "Forecast Performance over Time (FCRE Secchi Depth)",
+    subtitle = "2024 Reforecast: LM vs RF vs VERA Baselines",
+    x = "Horizon (Days into the future)",
+    y = "Mean CRPS (Meters - Lower is Better)",
+    color = "Model"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    legend.position = "bottom",
+    legend.title = element_text(face = "bold")
+  )
+
+``` 
+```{r}
+#| label: fig-secchi-monthly-grid
+#| fig-cap: "Monthly Forecast Performance by Model. The best performing model overall for each month is highlighted with an exclamation point."
+#| echo: false
+#| message: false
+#| warning: false
+
+library(tidyverse)
+
+# Read the monthly data we saved earlier
+monthly_plot_data <- read_csv("model_output/secchi_DXE/secchi_monthly_data.csv", show_col_types = FALSE)
+
+# Ensure chronological ordering on the x-axis
+monthly_plot_data$month <- factor(monthly_plot_data$month, levels = month.abb)
+
+# Set a dynamic offset for the exclamation point based on the max value
+text_offset <- max(monthly_plot_data$mean_crps, na.rm = TRUE) * 0.05
+
+ggplot(monthly_plot_data, aes(x = month, y = mean_crps, fill = model_id)) +
+  geom_col(color = "black", alpha = 0.8) +
+  # Place the exclamation point slightly above the top of the bar
+  geom_text(aes(label = winner_label, y = mean_crps + text_offset), 
+            size = 6, fontface = "bold", color = "black", vjust = 0) +
+  theme_bw() +
+  # The magic line: Create a 2x2 grid based on the model_id
+  facet_wrap(~ model_id, nrow = 2, ncol = 2) +
+  scale_fill_manual(values = c(
+    "climatology" = "gray50", 
+    "persistenceRW" = "darkorange", 
+    "Dom_LM_Secchi" = "firebrick",
+    "Dom_RF_Secchi" = "dodgerblue4"
+  )) + 
+  labs(
+    title = "Monthly Forecast Performance by Model",
+    subtitle = "Exclamation point (!) indicates the lowest CRPS across all models for that month",
+    x = "Month (2024)",
+    y = "Mean CRPS (Meters)"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    legend.position = "none", # Legend is redundant now that we have grid labels
+    strip.background = element_rect(fill = "gray90", color = "black"),
+    strip.text = element_text(face = "bold", size = 11),
+    # Angle the month names so they don't overlap in the smaller grid spaces
+    axis.text.x = element_text(angle = 45, hjust = 1) 
+  ) +
+  # Extend the y-axis slightly so the exclamation points don't get cut off at the top
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) 
+```
+
+Running the reforecast with both the lm and rf reveals that through time, model performance varies from the inherent nature of each model, including baseline models. Climatology performs well around when spring mixing and fall turnover occur, as with this mixing occurring around the same time each year it is able to predict the turbidity with ease, however in the summer months when phytoplankton blooms are irregular, this model starts to perform worse. The LM model performs best during the summer stratified months, hihgliting the met data as a better predictor than historical and lagged predicitons. The random forest model did not outperform climatology nor the LM, insuinuating that this sparse timescale along with the variables at hand were not informative enough to the model to make better predicitons, with another caveat being that there was no hyperparameter tuning 
+
+# Reproducibility Checklist
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
