@@ -1,0 +1,25 @@
+on:
+  schedule:
+    - cron: '0 15 * * *' # Runs at 15:00 UTC daily
+  workflow_dispatch:
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    container: rqthomas/vera-rocker:latest
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install
+        shell: Rscript {0}
+        run: |
+          install.packages(c("ranger", "parsnip", "recipes", "workflows", "tidymodels", "tidyverse", "lubridate"))
+
+      - name: Generate forecasts
+        shell: Rscript {0}
+        run: |
+          source("model_code/Secchi_RF_Dom/Secchi_rf_DXE.R")
